@@ -5,7 +5,7 @@ import Board from "./components/Board";
 import Gallery from "./components/Gallery";
 import { useBoard } from "./store";
 import { db, saveBoard, listBoards, type BoardRecord } from "./db";
-import { uid } from "./utils";
+import { uid, fileToImageItem } from "./utils";
 
 const LAST_KEY = "artboard:lastBoardId";
 
@@ -20,6 +20,7 @@ export default function App() {
   const boardId = useBoard((s) => s.boardId);
   const selectedId = useBoard((s) => s.selectedId);
   const removeItem = useBoard((s) => s.removeItem);
+  const addItem = useBoard((s) => s.addItem);
   const loadBoard = useBoard((s) => s.loadBoard);
 
   /** Snapshot the current store into a BoardRecord (with a fresh thumbnail). */
@@ -107,6 +108,27 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedId, removeItem]);
+
+  // paste images from clipboard (Ctrl/Cmd+V)
+  useEffect(() => {
+    const onPaste = async (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.items ?? [])
+        .filter((it) => it.kind === "file" && it.type.startsWith("image/"))
+        .map((it) => it.getAsFile())
+        .filter((f): f is File => f !== null);
+      if (!files.length) return;
+      e.preventDefault();
+      const cx = window.innerWidth / 2;
+      const cy = (window.innerHeight - 52) / 2;
+      let offset = 0;
+      for (const file of files) {
+        addItem(await fileToImageItem(file, cx + offset, cy + offset));
+        offset += 24;
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [addItem]);
 
   const openGallery = async () => {
     await saveNow(); // flush current board so its thumbnail is up to date
